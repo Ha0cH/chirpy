@@ -8,8 +8,11 @@ import (
 func main() {
 	serveMux := http.NewServeMux()
 
-	// register the filepath
-	serveMux.Handle("/", http.FileServer(http.Dir(".")))
+	// handle static files
+	serveMux.Handle("/app/", http.StripPrefix("/app", http.FileServer(http.Dir("."))))
+
+	// readiness endpoint
+	serveMux.HandleFunc("/healthz", handlerHealthz)
 
 	server := &http.Server{
 		Addr:    ":8080",
