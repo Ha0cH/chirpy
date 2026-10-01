@@ -18,13 +18,13 @@ func main() {
 	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))
 
 	// readiness endpoint
-	serveMux.HandleFunc("/healthz", handlerHealthz)
+	serveMux.HandleFunc("GET /healthz", handlerHealthz)
 
 	// metrics endpoint
-	serveMux.HandleFunc("/metrics", apiCfg.handlerMetrics)
+	serveMux.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
 
 	// metrcis endpoint reset
-	serveMux.HandleFunc("/reset", apiCfg.handlerMetricsReset)
+	serveMux.HandleFunc("POST /reset", apiCfg.handlerMetricsReset)
 
 	server := &http.Server{
 		Addr:    ":8080",
