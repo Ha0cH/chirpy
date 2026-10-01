@@ -3,16 +3,25 @@ package main
 import (
 	"log"
 	"net/http"
+	"sync/atomic"
 )
+
+type apiConfig struct {
+	fileserverHits atomic.Int32
+}
 
 func main() {
 	serveMux := http.NewServeMux()
+	apiCfg := &apiConfig{}
 
 	// handle static files
-	serveMux.Handle("/app/", http.StripPrefix("/app", http.FileServer(http.Dir("."))))
+	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))
 
 	// readiness endpoint
 	serveMux.HandleFunc("/healthz", handlerHealthz)
+
+	// metrics endpoint
+	serveMux.HandleFunc("/metrics", apiCfg.handlerMetrics)
 
 	server := &http.Server{
 		Addr:    ":8080",
