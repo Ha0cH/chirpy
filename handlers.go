@@ -23,3 +23,7 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 		log.Println("failed to write to response body: ", err)
 	}
 }
+
+func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, r *http.Request) {
+	cfg.fileserverHits.Store(0)
+}

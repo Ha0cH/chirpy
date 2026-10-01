@@ -23,6 +23,9 @@ func main() {
 	// metrics endpoint
 	serveMux.HandleFunc("/metrics", apiCfg.handlerMetrics)
 
+	// metrcis endpoint reset
+	serveMux.HandleFunc("/reset", apiCfg.handlerMetricsReset)
+
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: serveMux,
