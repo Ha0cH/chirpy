@@ -17,8 +17,17 @@ func handlerHealthz(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	hits := cfg.fileserverHits.Load()
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, err := fmt.Fprintf(w, "Hits: %d", hits)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	htmlTemplate := fmt.Sprintf(`
+	<html>
+  		<body>
+    	<h1>Welcome, Chirpy Admin</h1>
+     	<p>Chirpy has been visited %d times!</p>
+     	</body>
+	</html>
+	`, hits)
+
+	_, err := fmt.Fprint(w, htmlTemplate)
 	if err != nil {
 		log.Println("failed to write to response body: ", err)
 	}

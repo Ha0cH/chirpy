@@ -21,10 +21,10 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", handlerHealthz)
 
 	// metrics endpoint
-	serveMux.HandleFunc("GET /api/metrics", apiCfg.handlerMetrics)
+	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 
 	// metrcis endpoint reset
-	serveMux.HandleFunc("POST /api/reset", apiCfg.handlerMetricsReset)
+	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerMetricsReset)
 
 	server := &http.Server{
 		Addr:    ":8080",
