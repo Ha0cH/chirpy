@@ -20,6 +20,9 @@ func main() {
 	// readiness endpoint
 	serveMux.HandleFunc("GET /api/healthz", handlerHealthz)
 
+	// chirps length validation endpoint
+	serveMux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
+
 	// metrics endpoint
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 
