@@ -14,7 +14,7 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	dbQueries      *database.Queries
+	queries        *database.Queries
 }
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 
 	serveMux := http.NewServeMux()
 	apiCfg := &apiConfig{
-		dbQueries: dbQueries,
+		queries: dbQueries,
 	}
 
 	// handle static files
