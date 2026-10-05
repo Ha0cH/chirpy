@@ -22,7 +22,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatal("Error loading databased: ", err)
+		log.Fatal("Error opening database: ", err)
 	}
 
 	dbQueries := database.New(db)
