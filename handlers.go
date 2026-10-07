@@ -6,6 +6,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 func handlerHealthz(w http.ResponseWriter, r *http.Request) {
@@ -35,8 +38,63 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		helperRespondWithError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
+
+	err := cfg.queries.DeleteAllUsers(r.Context())
+	if err != nil {
+		helperRespondWithError(
+			w,
+			http.StatusInternalServerError,
+			fmt.Sprintf("Error deleting users: %s", err),
+		)
+		return
+	}
+
 	cfg.fileserverHits.Store(0)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
+	type userEmail struct {
+		Email string `json:"email"`
+	}
+
+	type userInfo struct {
+		Id        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var email userEmail
+	err := decoder.Decode(&email)
+	if err != nil {
+		msg := fmt.Sprintf("Error decoding the request body: %s", err)
+		helperRespondWithError(w, http.StatusBadRequest, msg)
+		return
+	}
+
+	usr, err := cfg.queries.CreateUser(r.Context(), email.Email)
+	if err != nil {
+		msg := fmt.Sprintf("Error creating user: %s", err)
+		helperRespondWithError(w, http.StatusInternalServerError, msg)
+		return
+	}
+
+	usrResponse := userInfo{
+		Id:        usr.ID,
+		CreatedAt: usr.CreatedAt,
+		UpdatedAt: usr.UpdatedAt,
+		Email:     usr.Email,
+	}
+
+	helperRespondWithJSON(w, http.StatusCreated, usrResponse)
 }
 
 func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {

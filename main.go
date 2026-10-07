@@ -15,11 +15,13 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	queries        *database.Queries
+	platform       string
 }
 
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
+	platform := os.Getenv("PLATFORM")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal("Error opening database: ", err)
@@ -29,7 +31,8 @@ func main() {
 
 	serveMux := http.NewServeMux()
 	apiCfg := &apiConfig{
-		queries: dbQueries,
+		queries:  dbQueries,
+		platform: platform,
 	}
 
 	// handle static files
@@ -41,11 +44,14 @@ func main() {
 	// chirps length validation endpoint
 	serveMux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 
+	// create user endpoint
+	serveMux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+
 	// metrics endpoint
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 
 	// metrcis endpoint reset
-	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerMetricsReset)
+	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	server := &http.Server{
 		Addr:    ":8080",
