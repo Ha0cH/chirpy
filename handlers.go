@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/Ha0cH/chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -97,34 +99,56 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	helperRespondWithJSON(w, http.StatusCreated, usrResponse)
 }
 
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
-	type chirp struct {
-		Body string `json:"body"`
+func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
+	type chirpReq struct {
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
-	type chirpValid struct {
-		Cleaned_body string `json:"cleaned_body"`
+	type chirpResp struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	var ch chirp
+	var ch chirpReq
 	err := decoder.Decode(&ch)
 	if err != nil {
 		msg := fmt.Sprintf("Error decoding the request body: %s", err)
 		helperRespondWithError(w, http.StatusBadRequest, msg)
 		return
 	}
-	chirpLen := len(ch.Body)
-	if chirpLen <= 140 {
-		cleaned := helperReplaceProfane(ch.Body)
-		v := chirpValid{
-			Cleaned_body: cleaned,
-		}
-		helperRespondWithJSON(w, http.StatusOK, v)
-	} else {
+
+	chirpLen := utf8.RuneCountInString(ch.Body)
+	if chirpLen > 140 {
 		msg := "Chirp is too long"
 		helperRespondWithError(w, http.StatusBadRequest, msg)
+		return
 	}
+
+	cleaned := helperReplaceProfane(ch.Body)
+	chirpParams := database.CreateChirpParams{
+		Body:   cleaned,
+		UserID: ch.UserID,
+	}
+	newChirp, err := cfg.queries.CreateChirp(r.Context(), chirpParams)
+	if err != nil {
+		msg := fmt.Sprintf("Error creating new chirp: %s", err)
+		helperRespondWithError(w, http.StatusInternalServerError, msg)
+		return
+	}
+
+	response := chirpResp{
+		ID:        newChirp.ID,
+		CreatedAt: newChirp.CreatedAt,
+		UpdatedAt: newChirp.UpdatedAt,
+		Body:      newChirp.Body,
+		UserID:    newChirp.UserID,
+	}
+	helperRespondWithJSON(w, http.StatusCreated, response)
 }
 
 func helperRespondWithError(w http.ResponseWriter, code int, msg string) {
