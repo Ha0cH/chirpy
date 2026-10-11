@@ -53,6 +53,9 @@ func main() {
 	// get one chirp by ID endpoint
 	serveMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirpByID)
 
+	// user login endpoint
+	serveMux.HandleFunc("POST /api/login", apiCfg.handlerUserLogin)
+
 	// metrics endpoint
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 

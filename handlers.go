@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Ha0cH/chirpy/internal/auth"
 	"github.com/Ha0cH/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -63,42 +64,95 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+type userInfoReq struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
+
+type userInfoResp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
+
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
-	type userEmail struct {
-		Email string `json:"email"`
-	}
-
-	type userInfo struct {
-		Id        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-	}
-
 	decoder := json.NewDecoder(r.Body)
-	var email userEmail
-	err := decoder.Decode(&email)
+	var u userInfoReq
+	err := decoder.Decode(&u)
 	if err != nil {
 		msg := fmt.Sprintf("Error decoding the request body: %s", err)
 		helperRespondWithError(w, http.StatusBadRequest, msg)
 		return
 	}
 
-	usr, err := cfg.queries.CreateUser(r.Context(), email.Email)
+	hashedPsw, err := auth.HashPassword(u.Password)
+	if err != nil {
+		log.Printf("Error hashing password: %s", err)
+		helperRespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	usrParams := database.CreateUserParams{
+		Email:          u.Email,
+		HashedPassword: hashedPsw,
+	}
+
+	usr, err := cfg.queries.CreateUser(r.Context(), usrParams)
 	if err != nil {
 		msg := fmt.Sprintf("Error creating user: %s", err)
 		helperRespondWithError(w, http.StatusInternalServerError, msg)
 		return
 	}
 
-	usrResponse := userInfo{
-		Id:        usr.ID,
+	usrResponse := userInfoResp{
+		ID:        usr.ID,
 		CreatedAt: usr.CreatedAt,
 		UpdatedAt: usr.UpdatedAt,
 		Email:     usr.Email,
 	}
 
 	helperRespondWithJSON(w, http.StatusCreated, usrResponse)
+}
+
+func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
+	var u userInfoReq
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&u)
+	if err != nil {
+		msg := fmt.Sprintf("Error decoding the request body: %s", err)
+		helperRespondWithError(w, http.StatusBadRequest, msg)
+		return
+	}
+
+	usr, err := cfg.queries.GetUserByEmail(r.Context(), u.Email)
+	if errors.Is(err, sql.ErrNoRows) {
+		helperRespondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
+		return
+	}
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	pwdMatched, err := auth.CheckPasswordHash(u.Password, usr.HashedPassword)
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Error verifying password")
+		return
+	}
+
+	if !pwdMatched {
+		helperRespondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
+		return
+	}
+
+	response := userInfoResp{
+		ID:        usr.ID,
+		CreatedAt: usr.CreatedAt,
+		UpdatedAt: usr.UpdatedAt,
+		Email:     usr.Email,
+	}
+	helperRespondWithJSON(w, http.StatusOK, response)
 }
 
 type chirpReq struct {
