@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -99,20 +101,20 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	helperRespondWithJSON(w, http.StatusCreated, usrResponse)
 }
 
+type chirpReq struct {
+	Body   string    `json:"body"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+type chirpResp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
-	type chirpReq struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
-	}
-
-	type chirpResp struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Body      string    `json:"body"`
-		UserID    uuid.UUID `json:"user_id"`
-	}
-
 	decoder := json.NewDecoder(r.Body)
 	var ch chirpReq
 	err := decoder.Decode(&ch)
@@ -149,6 +151,51 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		UserID:    newChirp.UserID,
 	}
 	helperRespondWithJSON(w, http.StatusCreated, response)
+}
+
+func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.queries.GetAllChirps(r.Context())
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error retrieving all chirps: %s", err))
+		return
+	}
+	responses := make([]chirpResp, len(chirps))
+	for idx, c := range chirps {
+		responses[idx] = chirpResp{
+			ID:        c.ID,
+			CreatedAt: c.CreatedAt,
+			UpdatedAt: c.UpdatedAt,
+			Body:      c.Body,
+			UserID:    c.UserID,
+		}
+	}
+	helperRespondWithJSON(w, http.StatusOK, responses)
+}
+
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	chirpIDStr := r.PathValue("chirpID")
+	chirpID, err := uuid.Parse(chirpIDStr)
+	if err != nil {
+		helperRespondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+		return
+	}
+	ch, err := cfg.queries.GetChirpByID(r.Context(), chirpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		helperRespondWithError(w, http.StatusNotFound, "Chirp not found")
+		return
+	}
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	response := chirpResp{
+		ID:        ch.ID,
+		CreatedAt: ch.CreatedAt,
+		UpdatedAt: ch.UpdatedAt,
+		Body:      ch.Body,
+		UserID:    ch.UserID,
+	}
+	helperRespondWithJSON(w, http.StatusOK, response)
 }
 
 func helperRespondWithError(w http.ResponseWriter, code int, msg string) {
