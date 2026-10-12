@@ -16,12 +16,18 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	queries        *database.Queries
 	platform       string
+	jwtSecret      string
 }
 
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal("Error opening database: ", err)
@@ -31,8 +37,9 @@ func main() {
 
 	serveMux := http.NewServeMux()
 	apiCfg := &apiConfig{
-		queries:  dbQueries,
-		platform: platform,
+		queries:   dbQueries,
+		platform:  platform,
+		jwtSecret: jwtSecret,
 	}
 
 	// handle static files

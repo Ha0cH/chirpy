@@ -115,8 +115,22 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	helperRespondWithJSON(w, http.StatusCreated, usrResponse)
 }
 
+type userLoginReq struct {
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
+}
+
+type userLoginResp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+	Token     string    `json:"token"`
+}
+
 func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
-	var u userInfoReq
+	var u userLoginReq
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&u)
 	if err != nil {
@@ -146,18 +160,29 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := userInfoResp{
+	expiresIn := time.Hour
+	if u.ExpiresInSeconds > 0 && u.ExpiresInSeconds < 3600 {
+		expiresIn = time.Duration(u.ExpiresInSeconds) * time.Second
+	}
+
+	token, err := auth.MakeJWT(usr.ID, cfg.jwtSecret, expiresIn)
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Error generating JWT")
+		return
+	}
+
+	response := userLoginResp{
 		ID:        usr.ID,
 		CreatedAt: usr.CreatedAt,
 		UpdatedAt: usr.UpdatedAt,
 		Email:     usr.Email,
+		Token:     token,
 	}
 	helperRespondWithJSON(w, http.StatusOK, response)
 }
 
 type chirpReq struct {
-	Body   string    `json:"body"`
-	UserID uuid.UUID `json:"user_id"`
+	Body string `json:"body"`
 }
 
 type chirpResp struct {
@@ -169,9 +194,21 @@ type chirpResp struct {
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		helperRespondWithError(w, http.StatusUnauthorized, "Missing or invalid bearer token")
+		return
+	}
+
+	usrID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		helperRespondWithError(w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	var ch chirpReq
-	err := decoder.Decode(&ch)
+	err = decoder.Decode(&ch)
 	if err != nil {
 		msg := fmt.Sprintf("Error decoding the request body: %s", err)
 		helperRespondWithError(w, http.StatusBadRequest, msg)
@@ -188,7 +225,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	cleaned := helperReplaceProfane(ch.Body)
 	chirpParams := database.CreateChirpParams{
 		Body:   cleaned,
-		UserID: ch.UserID,
+		UserID: usrID,
 	}
 	newChirp, err := cfg.queries.CreateChirp(r.Context(), chirpParams)
 	if err != nil {
