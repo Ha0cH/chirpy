@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -88,4 +90,10 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", fmt.Errorf("Authorization scheme is not Bearer")
 	}
 	return parts[1], nil
+}
+
+func MakeRefreshToken() string {
+	random := make([]byte, 32)
+	rand.Read(random)
+	return hex.EncodeToString(random)
 }
