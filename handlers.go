@@ -407,6 +407,49 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 	helperRespondWithJSON(w, http.StatusOK, response)
 }
 
+func (cfg *apiConfig) handlerDeleteChirpByID(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		helperRespondWithError(w, http.StatusUnauthorized, "Invalid or missing access token")
+		return
+	}
+
+	usrID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		helperRespondWithError(w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
+	chirpIDStr := r.PathValue("chirpID")
+	chirpID, err := uuid.Parse(chirpIDStr)
+	if err != nil {
+		helperRespondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+		return
+	}
+
+	chirp, err := cfg.queries.GetChirpByID(r.Context(), chirpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		helperRespondWithError(w, http.StatusNotFound, "Chirp not found")
+		return
+	}
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	if usrID != chirp.UserID {
+		helperRespondWithError(w, http.StatusForbidden, "Forbidden request")
+		return
+	}
+
+	err = cfg.queries.DeleteChirpByID(r.Context(), chirpID)
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func helperRespondWithError(w http.ResponseWriter, code int, msg string) {
 	type errorMsg struct {
 		Error string `json:"error"`
