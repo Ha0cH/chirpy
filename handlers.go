@@ -312,9 +312,19 @@ type polkaWebhook struct {
 }
 
 func (cfg *apiConfig) handlerUpgradeUserByID(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if apiKey != cfg.polkaKey {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	var webhook polkaWebhook
-	err := decoder.Decode(&webhook)
+	err = decoder.Decode(&webhook)
 	if err != nil {
 		helperRespondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error decoding the request body: %s", err))
 		return
