@@ -75,6 +75,9 @@ func main() {
 	// delete chirp endpoint
 	serveMux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirpByID)
 
+	// upgrade user webhook
+	serveMux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerUpgradeUserByID)
+
 	// metrics endpoint
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 

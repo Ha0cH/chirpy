@@ -70,10 +70,11 @@ type userInfoReq struct {
 }
 
 type userInfoResp struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
@@ -106,10 +107,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	usrResponse := userInfoResp{
-		ID:        usr.ID,
-		CreatedAt: usr.CreatedAt,
-		UpdatedAt: usr.UpdatedAt,
-		Email:     usr.Email,
+		ID:          usr.ID,
+		CreatedAt:   usr.CreatedAt,
+		UpdatedAt:   usr.UpdatedAt,
+		Email:       usr.Email,
+		IsChirpyRed: usr.IsChirpyRed,
 	}
 
 	helperRespondWithJSON(w, http.StatusCreated, usrResponse)
@@ -127,6 +129,7 @@ type userLoginResp struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +188,7 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 		Email:        usr.Email,
 		Token:        token,
 		RefreshToken: refreshToken.Token,
+		IsChirpyRed:  usr.IsChirpyRed,
 	}
 	helperRespondWithJSON(w, http.StatusOK, response)
 }
@@ -290,13 +294,48 @@ func (cfg *apiConfig) handlerUpdateLoginInfo(w http.ResponseWriter, r *http.Requ
 	}
 
 	response := userInfoResp{
-		Email:     updatedUsr.Email,
-		ID:        updatedUsr.ID,
-		CreatedAt: updatedUsr.CreatedAt,
-		UpdatedAt: updatedUsr.UpdatedAt,
+		Email:       updatedUsr.Email,
+		ID:          updatedUsr.ID,
+		CreatedAt:   updatedUsr.CreatedAt,
+		UpdatedAt:   updatedUsr.UpdatedAt,
+		IsChirpyRed: updatedUsr.IsChirpyRed,
 	}
 
 	helperRespondWithJSON(w, http.StatusOK, response)
+}
+
+type polkaWebhook struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID uuid.UUID `json:"user_id"`
+	} `json:"data"`
+}
+
+func (cfg *apiConfig) handlerUpgradeUserByID(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	var webhook polkaWebhook
+	err := decoder.Decode(&webhook)
+	if err != nil {
+		helperRespondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error decoding the request body: %s", err))
+		return
+	}
+
+	if webhook.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	_, err = cfg.queries.UpgradeUserByID(r.Context(), webhook.Data.UserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		helperRespondWithError(w, http.StatusNotFound, "User not found")
+		return
+	}
+	if err != nil {
+		helperRespondWithError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type chirpReq struct {
