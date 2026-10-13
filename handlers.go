@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -442,6 +443,12 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 			UserID:    c.UserID,
 		}
 	}
+
+	sortOrder := r.URL.Query().Get("sort")
+	if sortOrder == "desc" {
+		sort.Slice(responses, func(i, j int) bool { return responses[i].CreatedAt.After(responses[j].CreatedAt) })
+	}
+
 	helperRespondWithJSON(w, http.StatusOK, responses)
 }
 
