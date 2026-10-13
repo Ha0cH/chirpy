@@ -69,6 +69,9 @@ func main() {
 	// refresh token revoke endpoint
 	serveMux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeRefreshToken)
 
+	// user login info update endpoint
+	serveMux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateLoginInfo)
+
 	// metrics endpoint
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 

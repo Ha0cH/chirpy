@@ -238,6 +238,67 @@ func (cfg *apiConfig) handlerRevokeRefreshToken(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type updateLoginInfoReq struct {
+	NewEmail    string `json:"email"`
+	NewPassword string `json:"password"`
+}
+
+func (cfg *apiConfig) handlerUpdateLoginInfo(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		helperRespondWithError(w, http.StatusUnauthorized, "Missing or invalid access token")
+		return
+	}
+
+	usrID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		helperRespondWithError(w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var newLoginInfo updateLoginInfoReq
+	err = decoder.Decode(&newLoginInfo)
+	if err != nil {
+		helperRespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if newLoginInfo.NewEmail == "" || newLoginInfo.NewPassword == "" {
+		helperRespondWithError(w, http.StatusBadRequest, "Email and password are required")
+		return
+	}
+
+	newHashedPwd, err := auth.HashPassword(newLoginInfo.NewPassword)
+	if err != nil {
+		log.Println(err)
+		helperRespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	params := database.UpdateUserLoginInfoParams{
+		Email:          newLoginInfo.NewEmail,
+		HashedPassword: newHashedPwd,
+		ID:             usrID,
+	}
+
+	updatedUsr, err := cfg.queries.UpdateUserLoginInfo(r.Context(), params)
+	if err != nil {
+		log.Println(err)
+		helperRespondWithError(w, http.StatusInternalServerError, "Error updating database")
+		return
+	}
+
+	response := userInfoResp{
+		Email:     updatedUsr.Email,
+		ID:        updatedUsr.ID,
+		CreatedAt: updatedUsr.CreatedAt,
+		UpdatedAt: updatedUsr.UpdatedAt,
+	}
+
+	helperRespondWithJSON(w, http.StatusOK, response)
+}
+
 type chirpReq struct {
 	Body string `json:"body"`
 }
