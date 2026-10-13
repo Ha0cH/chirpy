@@ -412,11 +412,26 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.queries.GetAllChirps(r.Context())
+	var chirps []database.Chirp
+	var err error
+
+	usrIDStr := r.URL.Query().Get("author_id")
+	if usrIDStr != "" {
+		usrID, parseErr := uuid.Parse(usrIDStr)
+		if parseErr != nil {
+			helperRespondWithError(w, http.StatusBadRequest, "Invalid user ID")
+			return
+		}
+		chirps, err = cfg.queries.GetChirpsByUserID(r.Context(), usrID)
+	} else {
+		chirps, err = cfg.queries.GetAllChirps(r.Context())
+	}
+
 	if err != nil {
-		helperRespondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error retrieving all chirps: %s", err))
+		helperRespondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error retrieving chirps: %s", err))
 		return
 	}
+
 	responses := make([]chirpResp, len(chirps))
 	for idx, c := range chirps {
 		responses[idx] = chirpResp{
